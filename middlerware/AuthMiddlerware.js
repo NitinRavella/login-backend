@@ -11,15 +11,22 @@ const authenticate = async (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await User.findById(decoded.userId).select('-password'); // remove password
+        const user = await User.findById(decoded.userId).select('-password');
 
         if (!user) return res.status(404).json({ message: 'User not found' });
 
-        req.user = { id: user._id, name: user.fullName };
+        req.user = { id: user._id, name: user.fullName, role: user.isAdmin, createdAt: user.createdAt };
         next();
     } catch (err) {
         return res.status(401).json({ message: 'Invalid token' });
     }
 };
 
-module.exports = authenticate;
+const adminOnly = (req, res, next) => {
+    if (req.user.role !== true) {
+        return res.status(403).json({ message: 'Admin access required' });
+    }
+    next();
+};
+
+module.exports = { authenticate, adminOnly };

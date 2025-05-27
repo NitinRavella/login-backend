@@ -4,6 +4,9 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const dotenv = require('dotenv');
 const { sendSuccessEmail } = require('./EmailController');
+const { OAuth2Client } = require('google-auth-library');
+const axios = require('axios');
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 dotenv.config();
 
 const registerUser = async (req, res) => {
@@ -53,8 +56,6 @@ const registerUser = async (req, res) => {
     }
 };
 
-
-
 const loginUser = async (req, res) => {
     console.log('Login user');
     try {
@@ -65,7 +66,7 @@ const loginUser = async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-        const accessToken = jwt.sign({ userId: user._id, isAdmin: user.isAdmin }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        const accessToken = jwt.sign({ userId: user._id, role: user.isAdmin ? 'admin' : 'user' }, process.env.JWT_SECRET, { expiresIn: '1h' });
         const refreshToken = jwt.sign({ userId: user._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: '1h' });
 
         res.cookie('refreshToken', refreshToken, {
@@ -89,6 +90,7 @@ const loginUser = async (req, res) => {
 
 const refreshAccessToken = (req, res) => {
     const token = req.cookies.refreshToken;
+    console.log('Refreshing access token', token);
     if (!token) return res.status(401).json({ message: 'No refresh token' });
 
     try {
@@ -97,7 +99,7 @@ const refreshAccessToken = (req, res) => {
 
         // Fetch user to get isAdmin again
         User.findById(userId).then(user => {
-            const newAccessToken = jwt.sign({ userId: user._id, isAdmin: user.isAdmin }, process.env.JWT_SECRET, { expiresIn: '1m' });
+            const newAccessToken = jwt.sign({ userId: user._id, role: user.isAdmin ? 'admin' : 'user' }, process.env.JWT_SECRET, { expiresIn: '1m' });
 
             const newRefreshToken = jwt.sign({ userId: user._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: '1h' });
             res.cookie('refreshToken', newRefreshToken, {
@@ -171,4 +173,71 @@ const updateUser = async (req, res) => {
     }
 };
 
-module.exports = { registerUser, loginUser, refreshAccessToken, logoutUser, getProfile, updateUser };
+const googleLogin = async (req, res) => {
+    const { token } = req.body;
+
+    try {
+        const ticket = await client.verifyIdToken({
+            idToken: token,
+            audience: process.env.GOOGLE_CLIENT_ID,
+        });
+
+        const payload = ticket.getPayload();
+        const { email, name, picture, sub } = payload;
+
+        // Check if user exists
+        let user = await User.findOne({ email });
+
+        if (!user) {
+            const response = await axios.get(picture, { responseType: 'arraybuffer' });
+            const avatarBuffer = Buffer.from(response.data, 'binary');
+
+            user = new User({
+                fullName: name,
+                email,
+                password: sub,
+                isAdmin: false,
+                avatar: {
+                    data: avatarBuffer,
+                    contentType: response.headers['content-type'] || 'image/jpeg'
+                }
+            });
+
+            sendSuccessEmail(email, name);
+
+            await user.save();
+        }
+
+        const accessToken = jwt.sign(
+            { userId: user._id, role: user.isAdmin ? 'admin' : 'user' },
+            process.env.JWT_SECRET,
+            { expiresIn: '1h' }
+        );
+
+        const refreshToken = jwt.sign(
+            { userId: user._id },
+            process.env.JWT_REFRESH_SECRET,
+            { expiresIn: '1h' }
+        );
+
+        res.cookie('refreshToken', refreshToken, {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'Strict',
+            maxAge: 60 * 60 * 1000,
+        });
+
+        res.json({
+            token: accessToken,
+            name: user.fullName,
+            email: user.email,
+            isAdmin: user.isAdmin
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(401).json({ message: 'Invalid Google token' });
+    }
+};
+
+module.exports = { registerUser, loginUser, refreshAccessToken, logoutUser, getProfile, updateUser, googleLogin };

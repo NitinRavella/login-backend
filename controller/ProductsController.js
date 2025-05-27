@@ -1,4 +1,5 @@
 const Product = require('../models/Products');
+const User = require('../models/User');
 
 const calculateAverageRating = (ratings) => {
     if (!ratings.length) return 0;
@@ -10,7 +11,7 @@ const calculateAverageRating = (ratings) => {
 // POST: Add product with image
 const createProduct = async (req, res) => {
     try {
-        const { name, price, description, stock, category } = req.body;
+        const { name, price, description, brand, stock, category, offerPrice } = req.body;
 
         if (!name || !price || !description || !category || !req.file) {
             return res.status(400).json({ message: 'All fields including image and category are required.' });
@@ -22,6 +23,8 @@ const createProduct = async (req, res) => {
             description,
             stock,
             category,
+            offerPrice: offerPrice || null,
+            brand: brand || null,
             image: {
                 data: req.file.buffer,
                 contentType: req.file.mimetype
@@ -45,7 +48,9 @@ const getAllProducts = async (req, res) => {
             _id: p._id,
             name: p.name,
             price: p.price,
+            offerPrice: p.offerPrice || null,
             description: p.description,
+            brand: p.brand || null,
             stock: p.stock,
             category: p.category,
             image: p.image?.data
@@ -85,12 +90,20 @@ const getProductById = async (req, res) => {
             return res.status(404).json({ message: 'Product not found' });
         }
 
-        const ratingsFormatted = product.ratings.map(r => ({
-            userName: r.userName,
-            rating: r.rating,
-            comment: r.comment || null,
-            date: r.date.toISOString().split('T')[0] // Format date to YYYY-MM-DD
-        }));
+        const ratingsFormatted = await Promise.all(
+            product.ratings.map(async r => {
+                const user = await User.findById(r.userId);
+                return {
+                    userName: r.userName,
+                    avatar: user?.avatar?.data
+                        ? `data:${user.avatar.contentType};base64,${user.avatar.data.toString('base64')}`
+                        : null,
+                    rating: r.rating,
+                    comment: r.comment || null,
+                    date: r.date.toISOString().split('T')[0]
+                };
+            })
+        );
 
         const formatted = {
             _id: product._id,
@@ -99,6 +112,8 @@ const getProductById = async (req, res) => {
             description: product.description,
             stock: product.stock,
             category: product.category,
+            brand: product.brand || null,
+            offerPrice: product.offerPrice || null,
             image: product.image?.data
                 ? `data:${product.image.contentType};base64,${product.image.data.toString('base64')}`
                 : null,
@@ -116,7 +131,7 @@ const getProductById = async (req, res) => {
 // PUT: Update product by ID
 const updateProductById = async (req, res) => {
     try {
-        const { name, price, description, stock, category } = req.body;
+        const { name, price, description, stock, category, offerPrice, brand } = req.body;
 
         if (!name || !price || !description || !category) {
             return res.status(400).json({ message: 'All fields except image are required.' });
@@ -127,7 +142,9 @@ const updateProductById = async (req, res) => {
             price,
             description,
             stock,
-            category
+            brand: brand || null,
+            category,
+            offerPrice: offerPrice || null
         };
 
         if (req.file) {
@@ -209,6 +226,32 @@ const rateProductById = async (req, res) => {
 };
 
 
+const getUsers = async (req, res) => {
+    console.log('Fetching all users', req.user);
+    try {
+        if (!req.user.role) {
+            return res.status(403).json({ message: 'Access denied. Admins only.' });
+        }
+
+        const users = await User.find().select('-password');
+
+        const formatted = users.map(user => ({
+            _id: user._id,
+            name: user.fullName,
+            email: user.email,
+            isAdmin: user.isAdmin,
+            avatar: user.avatar?.data
+                ? `data:${user.avatar.contentType};base64,${user.avatar.data.toString('base64')}`
+                : null,
+            createdAt: user.createdAt,
+        }));
+
+        res.status(200).json(formatted);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Failed to fetch users.' });
+    }
+};
 
 module.exports = {
     createProduct,
@@ -218,4 +261,5 @@ module.exports = {
     updateProductById,
     deleteProductById,
     rateProductById,
+    getUsers
 };

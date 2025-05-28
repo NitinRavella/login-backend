@@ -239,11 +239,12 @@ const getUsers = async (req, res) => {
             _id: user._id,
             name: user.fullName,
             email: user.email,
-            isAdmin: user.isAdmin,
+            role: user.role,
             avatar: user.avatar?.data
                 ? `data:${user.avatar.contentType};base64,${user.avatar.data.toString('base64')}`
                 : null,
             createdAt: user.createdAt,
+            updatedAt: user.updatedAt,
         }));
 
         res.status(200).json(formatted);

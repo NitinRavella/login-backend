@@ -5,6 +5,7 @@ const connectDB = require('./config/DBConnection');
 const authRoutes = require('./routes/AuthRoutes');
 const cookieParser = require('cookie-parser');
 const productsRoutes = require('./routes/ProductsRoutes');
+const cleanupExpiredUsers = require('./utils/cleanupExpiredUsers');
 
 dotenv.config();
 connectDB();
@@ -18,6 +19,8 @@ const allowedOrigins = [
 ];
 
 app.use(cookieParser());
+
+setInterval(cleanupExpiredUsers, 5 * 60 * 1000);
 
 app.use(cors({
     origin: function (origin, callback) {

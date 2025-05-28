@@ -3,15 +3,24 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const dotenv = require('dotenv');
-const { sendSuccessEmail } = require('./EmailController');
+const { sendVerificationEmail } = require('./EmailController');
 const { OAuth2Client } = require('google-auth-library');
 const axios = require('axios');
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 dotenv.config();
 
+
+const superadminOnly = (req, res, next) => {
+    if (req.user.role !== 'superadmin') {
+        return res.status(403).json({ message: 'Superadmin access required' });
+    }
+    next();
+};
+
+
 const registerUser = async (req, res) => {
     try {
-        const { fullName, email, password, isAdmin } = req.body;
+        const { fullName, email, password, role } = req.body;
 
         if (!fullName || !email || !password) {
             return res.status(400).json({ message: 'All fields are required.' });
@@ -24,31 +33,32 @@ const registerUser = async (req, res) => {
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
+        // Generate 6-digit numeric verification code
+        const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+
         const newUser = new User({
             fullName,
             email,
             password: hashedPassword,
-            isAdmin: isAdmin || false,
+            role: ['admin', 'superadmin'].includes(role) ? role : 'user',
+            isVerified: false,
+            verificationCode,
+            verificationCodeExpiresAt: Date.now() + 10 * 60 * 1000, // 10 mins
         });
 
-        // If avatar image is uploaded, store in DB
         if (req.file) {
             newUser.avatar = {
                 data: req.file.buffer,
-                contentType: req.file.mimetype
+                contentType: req.file.mimetype,
             };
         }
 
         await newUser.save();
 
-        try {
-            sendSuccessEmail(email, fullName);
-        } catch (err) {
-            console.error('Email sending failed:', err);
-            return res.status(500).json({ message: 'User registered, but email failed.' });
-        }
+        // Send verification email
+        await sendVerificationEmail(email, fullName, verificationCode);
 
-        res.status(201).json({ message: 'User registered successfully.' });
+        res.status(201).json({ message: 'User registered. Please verify your email.' });
 
     } catch (err) {
         console.error(err);
@@ -56,18 +66,70 @@ const registerUser = async (req, res) => {
     }
 };
 
+const verifyEmail = async (req, res) => {
+    try {
+        const { email, code } = req.body;
+
+        const user = await User.findOne({ email });
+
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        if (user.isVerified) {
+            return res.status(400).json({ message: 'User already verified.' });
+        }
+
+        if (user.verificationCode !== code) {
+            return res.status(400).json({ message: 'Invalid verification code.' });
+        }
+
+        if (Date.now() > user.verificationCodeExpiresAt) {
+            return res.status(400).json({ message: 'Verification code expired.' });
+        }
+
+        user.isVerified = true;
+        user.verificationCode = null;
+        user.verificationCodeExpiresAt = null;
+
+        // try {
+        //     await sendSuccessEmail(email, user.fullName);
+        // } catch (err) {
+        //     res.status(500).json({ message: 'Failed to send success email.' });
+        // }
+
+        await user.save();
+        res.json({ message: 'Email verified successfully.' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
 const loginUser = async (req, res) => {
-    console.log('Login user');
     try {
         const { email, password } = req.body;
+
         const user = await User.findOne({ email });
+
         if (!user) return res.status(400).json({ message: 'Invalid credentials' });
+
+        if (!user.isVerified) {
+            return res.status(403).json({ message: 'Please verify your email before logging in.' });
+        }
 
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-        const accessToken = jwt.sign({ userId: user._id, role: user.isAdmin ? 'admin' : 'user' }, process.env.JWT_SECRET, { expiresIn: '1h' });
-        const refreshToken = jwt.sign({ userId: user._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: '1h' });
+        const accessToken = jwt.sign(
+            { userId: user._id, role: user.role },
+            process.env.JWT_SECRET,
+            { expiresIn: '1h' }
+        );
+
+        const refreshToken = jwt.sign(
+            { userId: user._id },
+            process.env.JWT_REFRESH_SECRET,
+            { expiresIn: '1h' }
+        );
 
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
@@ -78,9 +140,10 @@ const loginUser = async (req, res) => {
 
         res.json({
             token: accessToken,
+            userId: user._id,
             name: user.fullName,
             email: user.email,
-            isAdmin: user.isAdmin
+            role: user.role
         });
     } catch (err) {
         console.error(err);
@@ -99,7 +162,7 @@ const refreshAccessToken = (req, res) => {
 
         // Fetch user to get isAdmin again
         User.findById(userId).then(user => {
-            const newAccessToken = jwt.sign({ userId: user._id, role: user.isAdmin ? 'admin' : 'user' }, process.env.JWT_SECRET, { expiresIn: '1m' });
+            const newAccessToken = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1m' });
 
             const newRefreshToken = jwt.sign({ userId: user._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: '1h' });
             res.cookie('refreshToken', newRefreshToken, {
@@ -135,7 +198,7 @@ const getProfile = async (req, res) => {
             user: {
                 fullName: user.fullName,
                 email: user.email,
-                isAdmin: user.isAdmin,
+                role: user.role,
                 avatar: avatarBase64
             }
         });
@@ -145,6 +208,23 @@ const getProfile = async (req, res) => {
     }
 };
 
+const roleUpdates = async (req, res) => {
+    const { role } = req.body;
+    const validRoles = ['user', 'admin'];
+
+    if (!validRoles.includes(role)) {
+        return res.status(400).json({ message: 'Invalid role specified.' });
+    }
+    console.log('Updating user role', req.params.id, role);
+    try {
+        const user = await User.findByIdAndUpdate(req.params.id, { role }, { new: true });
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        res.json({ message: `Role updated to ${role} for ${user.email}` });
+
+    } catch (err) {
+        res.status(500).json({ message: 'Server error' });
+    }
+}
 
 const updateUser = async (req, res) => {
     try {
@@ -173,6 +253,55 @@ const updateUser = async (req, res) => {
     }
 };
 
+const likedProducts = async (req, res) => {
+    console.log('params', req.params);
+    const { userID, productID } = req.params;
+
+    const user = await User.findById(userID);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (!user.likedProducts.includes(productID)) {
+        user.likedProducts.push(productID);
+        await user.save();
+        return res.json({ message: 'Product liked' });
+    } else {
+        return res.status(400).json({ message: 'Product already liked' });
+    }
+}
+const unlikedProducts = async (req, res) => {
+    const { userID, productID } = req.params;
+
+    const user = await User.findById(userID);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    user.likedProducts = user.likedProducts.filter(
+        id => id.toString() !== productID
+    );
+    await user.save();
+    res.json({ message: 'Product unliked' });
+}
+
+// GET /users/:userId/liked-products
+const getLikedProducts = async (req, res) => {
+    const { userID } = req.params;
+
+    const user = await User.findById(userID).populate('likedProducts');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    const likedProductsWithImages = user.likedProducts.map(product => {
+        const base64Image = product.image?.data
+            ? `data:${product.image.contentType};base64,${product.image.data.toString('base64')}`
+            : null;
+
+        return {
+            ...product.toObject(),
+            image: base64Image
+        };
+    });
+
+    res.json(likedProductsWithImages);
+};
+
+
 const googleLogin = async (req, res) => {
     const { token } = req.body;
 
@@ -196,7 +325,7 @@ const googleLogin = async (req, res) => {
                 fullName: name,
                 email,
                 password: sub,
-                isAdmin: false,
+                role: 'user',
                 avatar: {
                     data: avatarBuffer,
                     contentType: response.headers['content-type'] || 'image/jpeg'
@@ -240,4 +369,4 @@ const googleLogin = async (req, res) => {
     }
 };
 
-module.exports = { registerUser, loginUser, refreshAccessToken, logoutUser, getProfile, updateUser, googleLogin };
+module.exports = { registerUser, loginUser, refreshAccessToken, logoutUser, getProfile, updateUser, googleLogin, verifyEmail, superadminOnly, roleUpdates, likedProducts, unlikedProducts, getLikedProducts };

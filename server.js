@@ -5,6 +5,7 @@ const connectDB = require('./config/DBConnection');
 const authRoutes = require('./routes/AuthRoutes');
 const cookieParser = require('cookie-parser');
 const productsRoutes = require('./routes/ProductsRoutes');
+const orderRoutes = require('./routes/OrderRoutes')
 const cleanupExpiredUsers = require('./utils/cleanupExpiredUsers');
 
 dotenv.config();
@@ -38,6 +39,7 @@ app.use(express.json());
 
 app.use('/api', authRoutes);
 app.use('/api', productsRoutes);
+app.use('/api', orderRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

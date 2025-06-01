@@ -8,10 +8,12 @@ const ProductSchema = new mongoose.Schema({
     category: { type: String, required: true },
     stock: { type: Number, required: true },
     brand: { type: String, required: true },
-    image: {
-        data: Buffer,
-        contentType: String
-    },
+    productImages: [
+        {
+            data: Buffer,
+            contentType: String
+        }
+    ],
     ratings: [{
         userId: {
             type: mongoose.Schema.Types.ObjectId,
@@ -27,6 +29,12 @@ const ProductSchema = new mongoose.Schema({
             required: true
         },
         comment: String,
+        images: [
+            {
+                data: Buffer,
+                contentType: String
+            }
+        ],
         date: {
             type: Date,
             default: Date.now

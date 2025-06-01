@@ -3,7 +3,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const dotenv = require('dotenv');
-const { sendVerificationEmail } = require('./EmailController');
+const { sendVerificationEmail, sendSuccessEmail } = require('./EmailController');
 const { OAuth2Client } = require('google-auth-library');
 const axios = require('axios');
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -90,8 +90,8 @@ const verifyEmail = async (req, res) => {
         user.verificationCode = null;
         user.verificationCodeExpiresAt = null;
 
+        await sendSuccessEmail(email, user.fullName);
         // try {
-        //     await sendSuccessEmail(email, user.fullName);
         // } catch (err) {
         //     res.status(500).json({ message: 'Failed to send success email.' });
         // }
@@ -119,17 +119,9 @@ const loginUser = async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-        const accessToken = jwt.sign(
-            { userId: user._id, role: user.role },
-            process.env.JWT_SECRET,
-            { expiresIn: '1h' }
-        );
+        const accessToken = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-        const refreshToken = jwt.sign(
-            { userId: user._id },
-            process.env.JWT_REFRESH_SECRET,
-            { expiresIn: '1h' }
-        );
+        const refreshToken = jwt.sign({ userId: user._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: '1h' });
 
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
@@ -172,7 +164,7 @@ const refreshAccessToken = (req, res) => {
                 maxAge: 60 * 60 * 1000,
             });
 
-            res.json({ token: newAccessToken, isAdmin: user.isAdmin });
+            res.json({ token: newAccessToken, role: user.role });
         });
     } catch (err) {
         return res.status(403).json({ message: 'Session expired' });
@@ -268,6 +260,7 @@ const likedProducts = async (req, res) => {
         return res.status(400).json({ message: 'Product already liked' });
     }
 }
+
 const unlikedProducts = async (req, res) => {
     const { userID, productID } = req.params;
 
@@ -283,22 +276,35 @@ const unlikedProducts = async (req, res) => {
 
 // GET /users/:userId/liked-products
 const getLikedProducts = async (req, res) => {
-    const { userID } = req.params;
+    console.log('req', req.params)
+    try {
+        const { userID } = req.params;
+        const user = await User.findById(userID).populate('likedProducts');
+        if (!user) return res.status(404).json({ message: 'User not found' });
 
-    const user = await User.findById(userID).populate('likedProducts');
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    const likedProductsWithImages = user.likedProducts.map(product => {
-        const base64Image = product.image?.data
-            ? `data:${product.image.contentType};base64,${product.image.data.toString('base64')}`
-            : null;
+        const likedProductsWithImages = user.likedProducts.map(product => {
+            const productImages = Array.isArray(product.productImages)
+                ? product.productImages.map(img =>
+                    img?.data
+                        ? `data:${img.contentType};base64,${img.data.toString('base64')}`
+                        : null
+                ).filter(Boolean)
+                : [];
 
-        return {
-            ...product.toObject(),
-            image: base64Image
-        };
-    });
+            return {
+                ...product.toObject(),
+                productImages
+            };
+        });
 
-    res.json(likedProductsWithImages);
+        res.json({
+            likedProductsIds: user.likedProducts.map(p => p._id),
+            likedProductsWithImages
+        });
+    } catch (error) {
+        console.error('Error fetching liked products:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
 };
 
 

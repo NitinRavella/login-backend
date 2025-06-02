@@ -7,32 +7,32 @@ const upload = multer({ storage });
 const {
     createProduct,
     getAllProducts,
-    getProductImage,
     getProductById,
     updateProductById,
     deleteProductById,
     rateProductById,
+    getUsers,
+    getRatingSummary,
 } = require('../controller/ProductsController');
-const authenticate = require('../middlerware/AuthMiddlerware');
 
-// POST: Add product with image
-router.post('/products', upload.single('image'), createProduct);
+const { authenticate, adminOnly } = require('../middlerware/AuthMiddlerware');
 
-// GET: All products with base64 images
+// ✅ Admin only: Add product with image
+router.post('/products', authenticate, adminOnly, upload.array('images', 5), createProduct);
+
+// 🟢 Public: All products
 router.get('/products', getAllProducts);
+router.get('/products/:id', getProductById);
 
-router.get('/products/:id', getProductById)
+// ✅ Admin only: Update/Delete product
+router.put('/products/:id', authenticate, adminOnly, upload.array('images', 5), updateProductById);
+router.delete('/products/:id', authenticate, adminOnly, deleteProductById);
 
-// GET: Single product image by ID
-router.get('/products/:id/image', getProductImage);
+// ✅ Logged-in users only: Rate product
+router.post('/product/:id/rating', authenticate, upload.array('images', 5), rateProductById);
+router.get('/products/:id/ratings-summary', getRatingSummary)
 
-//PUT: Update product by ID
-router.put('/products/:id', upload.single('image'), updateProductById);
-
-// DELETE: Delete product by ID
-router.delete('/products/:id', deleteProductById);
-
-//POST: Add rating to product
-router.post('/products/:id/rating', authenticate, rateProductById);
+//User routes
+router.get('/all', authenticate, getUsers);
 
 module.exports = router;

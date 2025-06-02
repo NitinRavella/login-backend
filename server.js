@@ -7,16 +7,22 @@ const cookieParser = require('cookie-parser');
 const productsRoutes = require('./routes/ProductsRoutes');
 const orderRoutes = require('./routes/OrderRoutes')
 const cleanupExpiredUsers = require('./utils/cleanupExpiredUsers');
+const bodyParser = require('body-parser');
+
 
 dotenv.config();
 connectDB();
 
 const app = express();
 
+app.use(bodyParser.json({ limit: '10mb' }));
+app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
+
 // List of allowed origins
 const allowedOrigins = [
     'http://localhost:3000',
-    'http://172.16.172.127:3000'
+    'http://172.16.172.127:3000',
+    'http://192.168.1.41:3000'
 ];
 
 app.use(cookieParser());

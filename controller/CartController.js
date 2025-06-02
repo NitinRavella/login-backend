@@ -4,12 +4,18 @@ const User = require('../models/User');
 const addToCart = async (req, res) => {
     const { userID } = req.params;
     const { productID, quantity } = req.body;
+    console.log('productId', productID)
 
     try {
         const user = await User.findById(userID);
         if (!user) return res.status(404).json({ message: 'User not found' });
 
-        const existingItem = user.cart.find(item => item.product.toString() === productID)
+        // Ensure productID is string to match ObjectId.toString()
+        const productIDStr = productID.toString();
+
+        const existingItem = user.cart.find(item =>
+            item.product && item.product.toString() === productIDStr
+        );
 
         if (existingItem) {
             existingItem.quantity += quantity;
@@ -27,9 +33,10 @@ const addToCart = async (req, res) => {
         });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ message: 'Error adding to cart', error });
+        res.status(500).json({ message: 'Error adding to cart', error: error.message });
     }
 };
+
 
 
 // controllers/cartController.js
@@ -74,25 +81,29 @@ const updateCartByQuantity = async (req, res) => {
     const { userID } = req.params;
     const { productId, quantity } = req.body;
 
+    if (!productId || typeof quantity !== 'number') {
+        return res.status(400).json({ message: 'Invalid product ID or quantity' });
+    }
+
     try {
         const user = await User.findById(userID);
         if (!user) return res.status(404).json({ message: 'User not found' });
 
-        const cartItem = user.cart.find(item => item.product.toString() === productId);
+        const cartItem = user.cart.find(item =>
+            item.product && item.product.toString() === productId.toString()
+        );
+
         if (!cartItem) {
             return res.status(404).json({ message: 'Product not found in cart' });
         }
 
-        // Update quantity
         cartItem.quantity = quantity;
         await user.save();
 
-        // Populate updated cart
         await user.populate('cart.product');
 
-        // Format cart with multiple images
         const cartWithImages = user.cart
-            .filter(item => item.product) // Ensure valid populated products
+            .filter(item => item.product)
             .map(item => {
                 const product = item.product;
 
@@ -129,7 +140,10 @@ const deleteFromCart = async (req, res) => {
         const user = await User.findById(userID);
         if (!user) return res.status(404).json({ message: 'User not found' });
 
-        user.cart = user.cart.filter(item => item.product.toString() !== productID);
+        user.cart = user.cart.filter(item => {
+            return item.product && item.product.toString() !== productID.toString();
+        });
+
         await user.save();
 
         await user.populate('cart.product');

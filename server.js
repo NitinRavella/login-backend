@@ -21,6 +21,7 @@ app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
 // List of allowed origins
 const allowedOrigins = [
     'http://localhost:3000',
+    'http://localhost:3001',
     'http://172.16.172.127:3000',
     'http://192.168.1.41:3000'
 ];

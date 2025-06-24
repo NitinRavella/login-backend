@@ -50,7 +50,7 @@ function getOrderStatusEmailTemplate({ orderId, customerName, newStatus, date, y
             </p>
 
             <div style="text-align: center; margin-top: 30px;">
-                <a href="https://yourwebsite.com/order/${orderId}"
+                <a href="http://localhost:3000/order/${orderId}"
                     style="display: inline-block; padding: 12px 24px; background-color: #4CAF50; color: #fff; text-decoration: none; font-size: 16px; border-radius: 6px;">
                     View Order
                 </a>

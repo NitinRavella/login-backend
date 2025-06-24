@@ -119,15 +119,15 @@ const loginUser = async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-        const accessToken = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        const accessToken = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '15m' });
 
-        const refreshToken = jwt.sign({ userId: user._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: '1h' });
+        const refreshToken = jwt.sign({ userId: user._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
 
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
             secure: true,
             sameSite: 'Strict',
-            maxAge: 60 * 60 * 1000,
+            maxAge: 7 * 24 * 60 * 60 * 1000,
         });
 
         res.json({
@@ -145,30 +145,23 @@ const loginUser = async (req, res) => {
 
 const refreshAccessToken = (req, res) => {
     const token = req.cookies.refreshToken;
-    console.log('Refreshing access token', token);
     if (!token) return res.status(401).json({ message: 'No refresh token' });
 
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
-        const userId = decoded.userId;
+    jwt.verify(token, process.env.JWT_REFRESH_SECRET, async (err, decoded) => {
+        if (err) return res.status(403).json({ message: 'Invalid refresh token' });
 
-        // Fetch user to get isAdmin again
-        User.findById(userId).then(user => {
-            const newAccessToken = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1m' });
+        try {
+            const user = await User.findById(decoded.userId);
+            if (!user) return res.status(404).json({ message: 'User not found' });
 
-            const newRefreshToken = jwt.sign({ userId: user._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: '1h' });
-            res.cookie('refreshToken', newRefreshToken, {
-                httpOnly: true,
-                secure: true,
-                sameSite: 'Strict',
-                maxAge: 60 * 60 * 1000,
-            });
+            const newAccessToken = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '15m' });
 
             res.json({ token: newAccessToken, role: user.role });
-        });
-    } catch (err) {
-        return res.status(403).json({ message: 'Session expired' });
-    }
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: 'Server error' });
+        }
+    });
 };
 
 const logoutUser = (req, res) => {
@@ -202,7 +195,7 @@ const getProfile = async (req, res) => {
 
 const roleUpdates = async (req, res) => {
     const { role } = req.body;
-    const validRoles = ['user', 'admin'];
+    const validRoles = ['user', 'admin']; //Added superadmin for role updated to superadmin
 
     if (!validRoles.includes(role)) {
         return res.status(400).json({ message: 'Invalid role specified.' });
@@ -246,7 +239,6 @@ const updateUser = async (req, res) => {
 };
 
 const likedProducts = async (req, res) => {
-    console.log('params', req.params);
     const { userID, productID } = req.params;
 
     const user = await User.findById(userID);
@@ -276,7 +268,6 @@ const unlikedProducts = async (req, res) => {
 
 // GET /users/:userId/liked-products
 const getLikedProducts = async (req, res) => {
-    console.log('req', req.params)
     try {
         const { userID } = req.params;
         const user = await User.findById(userID).populate('likedProducts');
@@ -284,11 +275,7 @@ const getLikedProducts = async (req, res) => {
 
         const likedProductsWithImages = user.likedProducts.map(product => {
             const productImages = Array.isArray(product.productImages)
-                ? product.productImages.map(img =>
-                    img?.data
-                        ? `data:${img.contentType};base64,${img.data.toString('base64')}`
-                        : null
-                ).filter(Boolean)
+                ? product.productImages.map(img => img?.url).filter(Boolean)
                 : [];
 
             return {

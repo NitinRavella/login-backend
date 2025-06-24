@@ -80,26 +80,24 @@ const getUserOrders = async (req, res) => {
     try {
         const userId = req.params.userId;
 
-        // Populate products with images (full productImages array)
-        const orders = await Order.find({ userId: userId })
+        const orders = await Order.find({ userId })
             .populate('items.product', 'name price offerPrice productImages')
             .sort({ placedAt: -1 });
 
         const ordersWithSummary = orders.map(order => {
             const itemsWithImages = order.items.map(item => {
-                const product = item.product.toObject(); // convert Mongoose doc to plain JS obj
-                if (product.productImages && product.productImages.length) {
-                    product.productImages = product.productImages.map(img => ({
-                        dataUri: `data:${img.contentType};base64,${img.data.toString('base64')}`
-                    }));
-                } else {
-                    product.productImages = [];
-                }
+                const product = item.product?.toObject?.() || {}; // handle missing/ref-deleted products
 
                 return {
-                    product,
+                    product: {
+                        _id: product._id,
+                        name: product.name,
+                        price: product.price,
+                        offerPrice: product.offerPrice,
+                        productImages: product.productImages || [], // already in Cloudinary format
+                    },
                     quantity: item.quantity,
-                    cancelled: item.cancelled || false
+                    cancelled: item.cancelled || false,
                 };
             });
 
@@ -109,7 +107,7 @@ const getUserOrders = async (req, res) => {
                 placedAt: order.placedAt,
                 items: itemsWithImages,
                 shippingAddress: order.shippingAddress,
-                summary: order.summary
+                summary: order.summary,
             };
         });
 
@@ -119,6 +117,7 @@ const getUserOrders = async (req, res) => {
         res.status(500).json({ success: false, message: "Failed to load order history" });
     }
 };
+
 
 //Get Order by ID
 const getOrderById = async (req, res) => {

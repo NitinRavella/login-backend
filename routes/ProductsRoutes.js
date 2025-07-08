@@ -6,12 +6,13 @@ const {
     createProduct,
     getAllProducts,
     getProductById,
-    updateMainProduct,
-    updateVariantProduct,
     deleteProductById,
     rateProductById,
     getUsers,
     getRatingSummary,
+    updateProductById,
+    restoreProductById,
+    getAllSoftDeletedProducts,
 } = require('../controller/ProductsController');
 
 const { authenticate, adminOnly } = require('../middlerware/AuthMiddlerware');
@@ -28,15 +29,14 @@ router.get('/products/:id', getProductById);
 
 // ✅ Admin only: Update/Delete product
 router.put('/products/:id', authenticate, adminOnly, upload.fields([
-    { name: 'images' },
-    { name: 'variantImages' }
-]), updateMainProduct);
-
-router.put('/variants/:id', authenticate, adminOnly, upload.fields([
-    { name: 'variantImages' }
-]), updateVariantProduct);
+    { name: 'images', maxCount: 10 },
+    { name: 'variantImages', maxCount: 30 }
+]), updateProductById);
 
 router.delete('/products/:id', authenticate, adminOnly, deleteProductById);
+router.patch('/products/:id/restore', authenticate, adminOnly, restoreProductById)
+
+router.get('/product/deleted/all', authenticate, adminOnly, getAllSoftDeletedProducts)
 
 // ✅ Logged-in users only: Rate product
 router.post('/product/:id/rating', authenticate, upload.array('reviewImages', 5), rateProductById);

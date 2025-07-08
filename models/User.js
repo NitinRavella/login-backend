@@ -5,7 +5,11 @@ const mongoose = require('mongoose');
 const cartItemSchema = new mongoose.Schema({
     product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
     quantity: { type: Number, default: 1 },
+    variantId: String,
     selectedSize: { type: String },
+    selectedColor: String,
+    selectedRam: String,
+    selectedRom: String
 });
 
 const UserSchema = new mongoose.Schema({
@@ -21,7 +25,14 @@ const UserSchema = new mongoose.Schema({
         contentType: String
     },
     cart: [cartItemSchema],
-    likedProducts: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }]
+    wishlist: [
+        {
+            productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+            variantId: String,
+            likedAt: { type: Date, default: Date.now }
+        }
+    ]
+
 }, { timestamps: true });
 
 

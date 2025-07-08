@@ -238,59 +238,98 @@ const updateUser = async (req, res) => {
     }
 };
 
-const likedProducts = async (req, res) => {
+const toggleWishlist = async (req, res) => {
     const { userID, productID } = req.params;
+    const { variantId } = req.body;
 
-    const user = await User.findById(userID);
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    if (!user.likedProducts.includes(productID)) {
-        user.likedProducts.push(productID);
-        await user.save();
-        return res.json({ message: 'Product liked' });
-    } else {
-        return res.status(400).json({ message: 'Product already liked' });
-    }
-}
-
-const unlikedProducts = async (req, res) => {
-    const { userID, productID } = req.params;
-
-    const user = await User.findById(userID);
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    user.likedProducts = user.likedProducts.filter(
-        id => id.toString() !== productID
-    );
-    await user.save();
-    res.json({ message: 'Product unliked' });
-}
-
-// GET /users/:userId/liked-products
-const getLikedProducts = async (req, res) => {
     try {
-        const { userID } = req.params;
-        const user = await User.findById(userID).populate('likedProducts');
+        const user = await User.findById(userID);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        if (variantId === null) return res.status(404).json({ message: 'Variant ID is missing' })
+
+        const index = user.wishlist.findIndex(item =>
+            item.productId.toString() === productID &&
+            item.variantId === variantId
+        );
+
+        if (index === -1) {
+            user.wishlist.push({ productId: productID, variantId });
+            await user.save();
+            return res.json({ message: 'Added to wishlist', liked: true });
+        } else {
+            user.wishlist.splice(index, 1);
+            await user.save();
+            return res.json({ message: 'Removed from wishlist', liked: false });
+        }
+    } catch (err) {
+        console.error('Wishlist error:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
+};
+
+
+const untoggleWishlist = async (req, res) => {
+    const { userID, productID } = req.params;
+    const { variantId } = req.body;
+
+    try {
+        const user = await User.findById(userID);
         if (!user) return res.status(404).json({ message: 'User not found' });
 
-        const likedProductsWithImages = user.likedProducts.map(product => {
-            const productImages = Array.isArray(product.productImages)
-                ? product.productImages.map(img => img?.url).filter(Boolean)
-                : [];
+        const initialLength = user.wishlist.length;
+
+        user.wishlist = user.wishlist.filter(item =>
+            !(item.productId.toString() === productID && item.variantId === variantId)
+        );
+
+        if (user.wishlist.length === initialLength) {
+            return res.status(404).json({ message: 'Item not found in wishlist' });
+        }
+
+        await user.save();
+        return res.json({ message: 'Wishlist item removed successfully' });
+    } catch (err) {
+        console.error('Error in untoggleWishlist:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+
+// GET /users/:userId/liked-products
+const getWishlist = async (req, res) => {
+    const { userID } = req.params;
+
+    try {
+        const user = await User.findById(userID).populate({
+            path: 'wishlist.productId',
+            model: 'Product',
+            select: 'name brand category variants mainImages' // choose what you need
+        });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const wishlistItems = user.wishlist.map(item => {
+            const product = item.productId;
+            const matchedVariant = product?.variants?.find(v => v.variantId === item.variantId);
 
             return {
-                ...product.toObject(),
-                productImages
+                productId: product?._id,
+                name: product?.name,
+                brand: product?.brand,
+                category: product?.category,
+                mainImages: product?.mainImages,
+                variant: matchedVariant,
+                variantId: item.variantId,
+                addedAt: item.addedAt
             };
         });
 
-        res.json({
-            likedProductsIds: user.likedProducts.map(p => p._id),
-            likedProductsWithImages
-        });
-    } catch (error) {
-        console.error('Error fetching liked products:', error);
-        res.status(500).json({ message: 'Internal server error' });
+        res.json({ wishlist: wishlistItems });
+    } catch (err) {
+        console.error('Get wishlist error:', err);
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
@@ -362,4 +401,4 @@ const googleLogin = async (req, res) => {
     }
 };
 
-module.exports = { registerUser, loginUser, refreshAccessToken, logoutUser, getProfile, updateUser, googleLogin, verifyEmail, superadminOnly, roleUpdates, likedProducts, unlikedProducts, getLikedProducts };
+module.exports = { registerUser, loginUser, refreshAccessToken, logoutUser, getProfile, updateUser, googleLogin, verifyEmail, superadminOnly, roleUpdates, toggleWishlist, untoggleWishlist, getWishlist };

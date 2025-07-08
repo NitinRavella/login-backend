@@ -2,8 +2,10 @@ const express = require('express');
 const router = express.Router();
 const multerUpload = require('../utils/MulterConfig');
 
-const { registerUser, loginUser, refreshAccessToken, logoutUser, updateUser, getProfile, googleLogin, verifyEmail, superadminOnly, roleUpdates, likedProducts,
-    unlikedProducts, getLikedProducts } = require('../controller/UserController');
+const { registerUser, loginUser, refreshAccessToken, logoutUser, updateUser, getProfile, googleLogin, verifyEmail, superadminOnly, roleUpdates,
+    toggleWishlist,
+    getWishlist,
+    untoggleWishlist } = require('../controller/UserController');
 const { authenticate } = require('../middlerware/AuthMiddlerware');
 const { addToCart, getCart, updateCartByQuantity, deleteFromCart } = require('../controller/CartController');
 
@@ -20,12 +22,12 @@ router.post('/google-login', googleLogin)
 // New route to update admin status of a user (only accessible by admin users) --> For updating the roles if superadmin whats then remove the superadminOnly and in the roleUpdates function add supperadmin
 router.put('/users/role/:id', authenticate, superadminOnly, roleUpdates);
 
-//liked products
-router.post('/:userID/like/:productID', authenticate, likedProducts);
-router.delete('/:userID/unlike/:productID', authenticate, unlikedProducts);
+//wishlist products
+router.post('/wishlist/toggle/:userID/:productID', authenticate, toggleWishlist);
+router.delete('/wishlist/remove/:userID/:productID', authenticate, untoggleWishlist);
 
-//get liked products
-router.get('/:userID/liked-products', authenticate, getLikedProducts);
+//get wishlist products
+router.get('/wishlist/:userID', authenticate, getWishlist);
 
 //cart routes
 router.post('/:userID/cart', authenticate, addToCart)

@@ -109,10 +109,11 @@ const getCart = async (req, res) => {
         const cartWithVariantData = user.cart.map(item => {
             const product = item.product?.toObject?.() || {};
 
-            // Match variant using string variantId
             const variant = product.variants?.find(
                 v => v.variantId === item.variantId
             );
+
+            const variantPricing = variant?.pricing || {};
 
             return {
                 product: {
@@ -121,7 +122,7 @@ const getCart = async (req, res) => {
                     category: product.category,
                     brand: product.brand,
                     baseName: product.baseName,
-                    thumbnail: variant?.thumbnails?.[0] || product.mainImages?.[0] || null
+                    thumbnail: variant?.images?.[0] || product.mainImages?.[0]?.url || null
                 },
                 variant: variant ? {
                     _id: variant._id,
@@ -131,12 +132,12 @@ const getCart = async (req, res) => {
                     rom: variant.rom,
                     sizeStock: variant.sizeStock || [],
                     stock: variant.stock ?? 0,
-                    images: variant.images || [],
-                    pricing: variant.pricing || {},
-                    price: variant.price,
-                    offerPrice: variant.offerPrice
+                    images: Array.isArray(variant.images) ? variant.images : [],
+                    pricing: variantPricing,
+                    price: variantPricing.price,
+                    offerPrice: variantPricing.offerPrice
                 } : null,
-                selectedColor: item.selectedColor,
+                selectedColor: item.selectedColor || null,
                 selectedSize: item.selectedSize || null,
                 selectedRam: item.selectedRam || null,
                 selectedRom: item.selectedRom || null,

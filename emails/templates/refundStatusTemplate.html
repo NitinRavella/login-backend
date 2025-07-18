@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Refund Update</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #f2f3f5;
+            margin: 0;
+            padding: 0;
+            color: #333;
+        }
+
+        .container {
+            max-width: 620px;
+            margin: 40px auto;
+            background-color: #fff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .header {
+            background-color: #1976d2;
+            color: #fff;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h2 {
+            margin: 0;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .content p {
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        .details {
+            margin-top: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th,
+        td {
+            border: 1px solid #eee;
+            padding: 10px;
+            font-size: 14px;
+        }
+
+        th {
+            background-color: #f5f5f5;
+            text-align: left;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 13px;
+            color: #888;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>Refund Update</h2>
+        </div>
+        <div class="content">
+            <p>Hi <strong>{{customerName}}</strong>,</p>
+            <p>We’ve processed your refund for <strong>Order #{{orderId}}</strong>. See the details below:</p>
+
+            <div class="details">
+                <table>
+                    <tr>
+                        <th>Refund ID</th>
+                        <td>{{refundId}}</td>
+                    </tr>
+                    <tr>
+                        <th>Refund Amount</th>
+                        <td>₹{{amount}}</td>
+                    </tr>
+                    <tr>
+                        <th>Reason</th>
+                        <td>{{reason}}</td>
+                    </tr>
+                    <tr>
+                        <th>Status</th>
+                        <td><strong>{{status}}</strong></td>
+                    </tr>
+                </table>
+            </div>
+
+            <p>You will see the refunded amount credited to your original payment method shortly.</p>
+
+            <p>If you have any questions, feel free to contact our support team.</p>
+            <p>Thanks for shopping with us!</p>
+        </div>
+        <div class="footer">
+            &copy; {{year}} YourCompanyName. All rights reserved.
+        </div>
+    </div>
+</body>
+
+</html>

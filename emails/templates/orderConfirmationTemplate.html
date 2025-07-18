@@ -1,73 +1,124 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" />
     <title>Order Confirmation</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
+            background-color: #f6f6f6;
+            color: #333;
             margin: 0;
             padding: 0;
         }
 
-        .container {
-            max-width: 600px;
+        .email-container {
+            max-width: 620px;
             margin: 30px auto;
-            background-color: #ffffff;
-            padding: 20px;
+            background-color: #fff;
             border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
         }
 
         .header {
-            background-color: #4CAF50;
-            padding: 15px;
-            color: white;
+            background-color: #28a745;
+            color: #fff;
+            padding: 24px;
             text-align: center;
-            border-radius: 8px 8px 0 0;
+        }
+
+        .header h2 {
+            margin: 0;
+            font-size: 22px;
         }
 
         .content {
-            padding: 20px;
-            color: #333333;
+            padding: 24px;
         }
 
-        .order-details {
-            margin-top: 20px;
-            border-collapse: collapse;
+        .content p {
+            line-height: 1.6;
+            margin: 10px 0;
+        }
+
+        .order-table {
             width: 100%;
+            border-collapse: collapse;
+            margin: 24px 0;
         }
 
-        .order-details th,
-        .order-details td {
-            border: 1px solid #ddd;
-            padding: 8px;
+        .order-table th,
+        .order-table td {
+            border: 1px solid #e0e0e0;
+            padding: 12px;
+            text-align: left;
         }
 
-        .order-details th {
-            background-color: #f2f2f2;
+        .order-table th {
+            background-color: #f8f9fa;
+        }
+
+        .total-row {
+            background-color: #f1f3f5;
+            font-weight: bold;
         }
 
         .footer {
-            margin-top: 30px;
+            padding: 20px;
             text-align: center;
-            font-size: 14px;
-            color: #777777;
+            font-size: 13px;
+            color: #888;
+            background: #f9f9f9;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: #121212;
+                color: #ddd;
+            }
+
+            .email-container {
+                background-color: #1e1e1e;
+                box-shadow: none;
+            }
+
+            .header {
+                background-color: #1a7f3f;
+            }
+
+            .order-table th {
+                background-color: #2c2c2c;
+            }
+
+            .order-table td,
+            .total-row {
+                background-color: #292929;
+                color: #ddd;
+                border-color: #444;
+            }
+
+            .footer {
+                background: #181818;
+                color: #999;
+            }
         }
     </style>
 </head>
 
 <body>
-    <div class="container">
+    <div class="email-container">
         <div class="header">
             <h2>Thank You for Your Order!</h2>
         </div>
         <div class="content">
-            <p>Hi <strong>{{customerName}}</strong>,</p>
-            <p>We have received your order <strong>#{{orderId}}</strong> and it is now being processed.</p>
+            <p>Hello <strong>{{customerName}}</strong>,</p>
+            <p>Your order <strong>#{{orderId}}</strong> has been successfully placed. 🎉</p>
+            <p>Here are your order details:</p>
 
-            <table class="order-details">
+            <table class="order-table">
                 <thead>
                     <tr>
                         <th>Product</th>
@@ -85,17 +136,24 @@
                     {{/each}}
                 </tbody>
                 <tfoot>
-                    <tr>
-                        <td colspan="2" style="text-align: right;"><strong>Total:</strong></td>
-                        <td><strong>₹{{totalPrice}}</strong></td>
+                    <tr class="total-row">
+                        <td colspan="2">Total</td>
+                        <td>₹{{totalPrice}}</td>
                     </tr>
                 </tfoot>
             </table>
 
-            <p style="margin-top: 20px;">You will receive another email once your order has been shipped.</p>
-            <p>If you have any questions, feel free to contact our support team.</p>
+            <p><strong>Shipping Address:</strong><br />
+                {{shippingAddress.address}},<br />
+                {{shippingAddress.city}}, {{shippingAddress.state}} - {{shippingAddress.pincode}}<br />
+                📞 {{shippingAddress.phone}}
+            </p>
 
-            <p>Thank you for shopping with us!</p>
+            <p>🧾 <strong>Payment Method:</strong> {{paymentMethod}}</p>
+            <p>📅 <strong>Placed on:</strong> {{placedAt}}</p>
+
+            <p>We’ll send another update when your order is shipped.</p>
+            <p>Thank you for shopping with us! 🛍️</p>
         </div>
         <div class="footer">
             &copy; {{year}} YourCompanyName. All rights reserved.

@@ -106,7 +106,7 @@ const verifyEmail = async (req, res) => {
 
 const loginUser = async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { email, password, guestWishlist = [] } = req.body;
 
         const user = await User.findOne({ email });
 
@@ -119,9 +119,32 @@ const loginUser = async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-        const accessToken = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '15m' });
+        // 🔄 Merge guest wishlist with user's existing wishlist
+        if (guestWishlist.length > 0) {
+            guestWishlist.forEach(({ productId, variantId }) => {
+                const alreadyExists = user.wishlist.some(
+                    item =>
+                        item.productId.toString() === productId &&
+                        item.variantId === variantId
+                );
+                if (!alreadyExists) {
+                    user.wishlist.push({ productId, variantId });
+                }
+            });
+            await user.save(); // Save only if any wishlist item was added
+        }
 
-        const refreshToken = jwt.sign({ userId: user._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
+        const accessToken = jwt.sign(
+            { userId: user._id, role: user.role },
+            process.env.JWT_SECRET,
+            { expiresIn: '15m' }
+        );
+
+        const refreshToken = jwt.sign(
+            { userId: user._id },
+            process.env.JWT_REFRESH_SECRET,
+            { expiresIn: '7d' }
+        );
 
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
@@ -241,15 +264,17 @@ const updateUser = async (req, res) => {
 const toggleWishlist = async (req, res) => {
     const { userID, productID } = req.params;
     const { variantId } = req.body;
+    if (!variantId) return res.status(400).json({ message: 'Variant ID is missing' });
+    if (!userID) {
+        return res.status(200).json({ message: 'Guest wishlist handled client-side', liked: true });
+    }
 
     try {
         const user = await User.findById(userID);
         if (!user) return res.status(404).json({ message: 'User not found' });
-        if (variantId === null) return res.status(404).json({ message: 'Variant ID is missing' })
 
         const index = user.wishlist.findIndex(item =>
-            item.productId.toString() === productID &&
-            item.variantId === variantId
+            item.productId.toString() === productID && item.variantId === variantId
         );
 
         if (index === -1) {
@@ -297,18 +322,21 @@ const untoggleWishlist = async (req, res) => {
 
 // GET /users/:userId/liked-products
 const getWishlist = async (req, res) => {
-    const { userID } = req.params;
+    const { userID } = req.params
+
+    if (!userID) {
+        // Guest - tell frontend to load from localStorage
+        return res.status(200).json({ wishlist: [] });
+    }
 
     try {
         const user = await User.findById(userID).populate({
             path: 'wishlist.productId',
             model: 'Product',
-            select: 'name brand category variants mainImages' // choose what you need
+            select: 'name brand category variants mainImages'
         });
 
-        if (!user) {
-            return res.status(404).json({ message: 'User not found' });
-        }
+        if (!user) return res.status(404).json({ message: 'User not found' });
 
         const wishlistItems = user.wishlist.map(item => {
             const product = item.productId;
@@ -331,7 +359,7 @@ const getWishlist = async (req, res) => {
         console.error('Get wishlist error:', err);
         res.status(500).json({ message: 'Server error' });
     }
-};
+};;
 
 
 const googleLogin = async (req, res) => {

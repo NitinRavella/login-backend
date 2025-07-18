@@ -16,8 +16,6 @@ function calculateAverageRating(ratings) {
 
 // POST: Add product with image
 const createProduct = async (req, res) => {
-    console.log('req.body', req.body);
-    console.log('req.files', req.files);
 
     try {
         const { name, description, brand, category, specifications } = req.body;
@@ -293,7 +291,6 @@ const getProductById = async (req, res) => {
 
 // PUT: Update Main product by ID
 const updateProductById = async (req, res) => {
-    console.log('req', req.files)
     try {
         const productId = req.params.id;
         const { name, description, brand, category, specifications } = req.body;
